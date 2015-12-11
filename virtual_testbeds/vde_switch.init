@@ -1,0 +1,45 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides: vde_switch
+# Required-Start:
+# Required-Stop:   
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: vde_switch
+# Description: vde_switch
+### END INIT INFO
+
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# The interface used as gateway to internet
+OUTPUT_INTERFACE='wlan0'
+
+case "$1" in
+  start)
+	mkdir -p /var/run/switch/
+	vde_switch -M /var/run/switch/mgmt -s /var/run/switch/sck -m 660 -g kvm -t tap0 -p /var/run/switch/pid -d
+	sleep 1s
+	ip addr add 10.0.0.1/24 dev tap0 
+	ip link set tap0 up
+	sysctl net.ipv4.ip_forward=1
+	iptables -t nat -A POSTROUTING -o $OUTPUT_INTERFACE -j MASQUERADE
+	;;
+  stop)
+	PID=`cat /var/run/switch/pid`	
+	ip link set tap0 down
+	sysctl net.ipv4.ip_forward=0
+	iptables -t nat -D POSTROUTING -o $OUTPUT_INTERFACE -j MASQUERADE
+	kill -9 $PID
+	iptables -t nat --flush
+	;;
+  force-reload|restart)
+	$0 stop
+	$0 start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart|force-reload}" >&2
+	exit 3
+	;;
+esac
+
+:
